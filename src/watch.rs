@@ -1,4 +1,5 @@
 use std::io::{self, Write};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use chrono::Local;
@@ -61,25 +62,46 @@ impl WatchState {
     }
 }
 
-fn data_fingerprint(ctx: &WatchContext, project: Option<&str>) -> (usize, u64, i64) {
-    let files = ctx.claude_dir.jsonl_files(project);
+fn file_fingerprint(files: &[PathBuf]) -> (usize, u64, i64) {
+    use std::path::Path;
+    fn meta(p: &Path) -> Option<(u64, i64)> {
+        let m = p.metadata().ok()?;
+        let sz = m.len();
+        let mt = m
+            .modified()
+            .ok()?
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()?
+            .as_secs() as i64;
+        Some((sz, mt))
+    }
     let count = files.len();
-    let total_size: u64 = files
+    let (total_size, max_mtime) = files
         .iter()
-        .filter_map(|f| f.metadata().ok().map(|m| m.len()))
-        .sum();
-    let max_mtime: i64 = files
-        .iter()
-        .filter_map(|f| {
-            f.metadata()
-                .ok()
-                .and_then(|m| m.modified().ok())
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_secs() as i64)
-        })
-        .max()
-        .unwrap_or(0);
+        .filter_map(|p| meta(p))
+        .fold((0u64, 0i64), |(sz, mt), (s, m)| (sz + s, mt.max(m)));
     (count, total_size, max_mtime)
+}
+
+fn data_fingerprint(ctx: &WatchContext, project: Option<&str>) -> (usize, u64, i64) {
+    let mut all_files = Vec::new();
+
+    if ctx.include_claude {
+        all_files.extend(ctx.claude_dir.jsonl_files(project));
+    }
+
+    if ctx.include_opencode {
+        let db = ctx.opencode_dir.db_path();
+        if db.exists() {
+            all_files.push(db);
+        }
+    }
+
+    if ctx.include_gemini {
+        all_files.extend(ctx.gemini_dir.session_files(project));
+    }
+
+    file_fingerprint(&all_files)
 }
 
 fn load_records(
