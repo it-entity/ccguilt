@@ -1,4 +1,3 @@
-use colored::*;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL_CONDENSED;
 use comfy_table::*;
@@ -185,7 +184,9 @@ pub fn render_table(buckets: &[UsageBucket], opts: &DisplayOptions) {
             .unwrap_or_default();
 
         let mut total_row = vec![
-            Cell::new("TOTAL".bold().to_string()).fg(comfy_table::Color::White),
+            Cell::new("TOTAL")
+                .add_attribute(Attribute::Bold)
+                .fg(comfy_table::Color::White),
             Cell::new(format_tokens(total_tokens)).fg(comfy_table::Color::White),
             Cell::new(format_cost(total_cost)).fg(comfy_table::Color::White),
             Cell::new(format_energy(total_energy)).fg(comfy_table::Color::White),

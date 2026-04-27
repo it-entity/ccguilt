@@ -52,13 +52,13 @@ pub fn format_co2(grams: f64) -> String {
 
 pub fn format_water(ml: f64) -> String {
     if ml >= 1_000_000.0 {
-        format!("{:.1} m\u{00B3}", ml / 1_000_000.0)
+        format!("{:.1} kL", ml / 1_000_000.0)
     } else if ml >= 1000.0 {
         format!("{:.1} L", ml / 1000.0)
     } else if ml >= 1.0 {
         format!("{:.0} mL", ml)
     } else {
-        format!("{:.2} \u{00B5}L", ml * 1000.0)
+        format!("{:.2} uL", ml * 1000.0)
     }
 }
 
