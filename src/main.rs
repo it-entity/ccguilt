@@ -301,8 +301,16 @@ fn main() -> Result<()> {
         return interactive::run_interactive(records, buckets, display_opts, rc);
     }
 
-    if let Some(secs) = args.watch {
-        return watch::run_watch(secs, &args, &data_dir, &rc, &display_opts);
+    if let Some(ref interval) = args.watch {
+        let watch_ctx = watch::WatchContext {
+            claude_dir: data_dir.clone(),
+            opencode_dir: opencode_data_dir,
+            gemini_dir: gemini_data_dir,
+            include_claude,
+            include_opencode,
+            include_gemini,
+        };
+        return watch::run_watch(interval, &args, &watch_ctx, &rc, &display_opts);
     }
 
     if args.json {
@@ -377,7 +385,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn fast_path(
+pub fn fast_path(
     args: &Args,
     data_dir: &ClaudeDataDir,
     rc: &RuntimeConfig,
@@ -412,7 +420,7 @@ fn fast_path(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn unified_scan(
+pub fn unified_scan(
     args: &Args,
     data_dir: &ClaudeDataDir,
     opencode_dir: &OpenCodeDataDir,

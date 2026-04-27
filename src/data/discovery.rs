@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
+#[derive(Clone)]
 pub struct ClaudeDataDir {
     pub base: PathBuf,
 }

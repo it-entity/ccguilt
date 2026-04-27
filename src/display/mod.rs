@@ -46,6 +46,7 @@ pub fn print_header() {
     println!();
 }
 
+#[allow(dead_code)]
 pub fn print_metadata(
     data_dir: &ClaudeDataDir,
     file_count: usize,
