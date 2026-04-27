@@ -2,6 +2,7 @@ use crate::config::*;
 use crate::models::{GuiltLevel, ImpactSummary};
 use colored::Colorize;
 use rand::seq::SliceRandom;
+use rand::Rng;
 
 pub fn generate_comparisons(impact: &ImpactSummary) -> Vec<String> {
     let mut comparisons = Vec::new();
@@ -207,23 +208,18 @@ const ABSURDISM_HIGH: &[&str] = &[
     "One must imagine Sisyphus happy. One must imagine you refreshing your terminal as the ice caps melt. Same energy.",
 ];
 
-/// Pick a nihilistic or absurdist remark appropriate to the guilt level.
 pub fn random_remark(level: GuiltLevel) -> &'static str {
     let mut rng = rand::thread_rng();
 
-    let (nihilism, absurdism) = match level {
-        GuiltLevel::DigitalSaint | GuiltLevel::CarbonCurious => {
-            (NIHILISM_LOW.to_vec(), ABSURDISM_LOW.to_vec())
-        }
-        GuiltLevel::TreeTrimmer | GuiltLevel::ForestFlattener => {
-            (NIHILISM_MID.to_vec(), ABSURDISM_MID.to_vec())
-        }
-        GuiltLevel::EcoTerrorist
-        | GuiltLevel::PlanetIncinerator
-        | GuiltLevel::HeatDeathAccelerator
-        | GuiltLevel::Himanshu => (NIHILISM_HIGH.to_vec(), ABSURDISM_HIGH.to_vec()),
+    let (nihilism, absurdism): (&[&'static str], &[&'static str]) = match level {
+        GuiltLevel::DigitalSaint | GuiltLevel::CarbonCurious => (NIHILISM_LOW, ABSURDISM_LOW),
+        GuiltLevel::TreeTrimmer | GuiltLevel::ForestFlattener => (NIHILISM_MID, ABSURDISM_MID),
+        _ => (NIHILISM_HIGH, ABSURDISM_HIGH),
     };
 
-    let pool: Vec<&str> = nihilism.into_iter().chain(absurdism).collect();
-    pool.choose(&mut rng).unwrap()
+    if rng.gen_bool(0.5) {
+        nihilism.choose(&mut rng).unwrap()
+    } else {
+        absurdism.choose(&mut rng).unwrap()
+    }
 }

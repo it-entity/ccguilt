@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
+#[derive(Clone)]
 pub struct ClaudeDataDir {
     pub base: PathBuf,
 }
@@ -204,17 +205,8 @@ pub fn decode_project_name(encoded: &str) -> String {
     if encoded.is_empty() {
         return String::new();
     }
-    // The encoding replaces / with - and prepends a -
-    // So "-home-it8-Repos" comes from "/home/it8/Repos"
-    // This is ambiguous if path components contain dashes, but it's the best we can do
-    let mut result = String::new();
-    let chars: Vec<char> = encoded.chars().collect();
-    for ch in &chars {
-        if *ch == '-' {
-            result.push('/');
-        } else {
-            result.push(*ch);
-        }
-    }
-    result
+    encoded
+        .chars()
+        .map(|c| if c == '-' { '/' } else { c })
+        .collect()
 }

@@ -7,7 +7,7 @@ use crate::cli::Period;
 use crate::models::{ModelTier, TokenRecord, UsageBucket};
 
 #[allow(dead_code)]
-pub fn aggregate(records: Vec<TokenRecord>, period: Period) -> Vec<UsageBucket> {
+pub fn aggregate(records: &[TokenRecord], period: Period) -> Vec<UsageBucket> {
     aggregate_with(
         records,
         period,
@@ -17,7 +17,7 @@ pub fn aggregate(records: Vec<TokenRecord>, period: Period) -> Vec<UsageBucket> 
 }
 
 pub fn aggregate_with(
-    records: Vec<TokenRecord>,
+    records: &[TokenRecord],
     period: Period,
     co2_kg_per_kwh: f64,
     pue: f64,
@@ -50,7 +50,7 @@ pub fn aggregate_with(
                 label: "All Time".to_string(),
                 ..Default::default()
             };
-            for record in &records {
+            for record in records {
                 add_record_to_bucket(&mut bucket, record);
             }
             finalize_bucket(&mut bucket, co2_kg_per_kwh, pue);
@@ -60,7 +60,7 @@ pub fn aggregate_with(
 }
 
 pub fn aggregate_by_project(
-    records: Vec<TokenRecord>,
+    records: &[TokenRecord],
     co2_kg_per_kwh: f64,
     pue: f64,
 ) -> Vec<UsageBucket> {
@@ -73,7 +73,7 @@ pub fn aggregate_by_project(
 }
 
 pub fn aggregate_by_model(
-    records: Vec<TokenRecord>,
+    records: &[TokenRecord],
     co2_kg_per_kwh: f64,
     pue: f64,
 ) -> Vec<UsageBucket> {
@@ -86,16 +86,14 @@ pub fn aggregate_by_model(
 }
 
 fn aggregate_by<F: Fn(&TokenRecord) -> String>(
-    mut records: Vec<TokenRecord>,
+    records: &[TokenRecord],
     key_fn: F,
     co2_kg_per_kwh: f64,
     pue: f64,
 ) -> Vec<UsageBucket> {
-    records.sort_by_key(|r| r.timestamp);
-
     let mut buckets: IndexMap<String, UsageBucket> = IndexMap::new();
 
-    for record in &records {
+    for record in records {
         let key = key_fn(record);
         let bucket = buckets.entry(key.clone()).or_insert_with(|| UsageBucket {
             label: key,
@@ -123,23 +121,18 @@ fn add_record_to_bucket(bucket: &mut UsageBucket, record: &TokenRecord) {
     model_entry.cache_creation_tokens += record.cache_creation_input_tokens;
     model_entry.cache_read_tokens += record.cache_read_input_tokens;
 
-    // Cost is accumulated per-record so each record uses LiteLLM pricing
-    // keyed on its exact model_raw string (falling back to tier).
     accumulate_record_cost(&mut bucket.cost, record);
 
-    let model_name = record.model.display_name().to_string();
-    if !bucket.models_used.contains(&model_name) {
-        bucket.models_used.push(model_name);
-    }
+    bucket
+        .models_used
+        .insert(record.model.display_name().to_string());
 }
 
 fn finalize_bucket(bucket: &mut UsageBucket, co2_kg_per_kwh: f64, pue: f64) {
-    // bucket.cost is already populated per-record during add_record_to_bucket.
     bucket.impact = calculate_impact_with(&bucket.tokens, co2_kg_per_kwh, pue);
     bucket.guilt = determine_guilt(&bucket.impact);
 }
 
-/// Build TokenRecords from fast-path cache data (all-time aggregate only)
 pub fn fast_path_total(
     model_usage: &indexmap::IndexMap<String, crate::models::CacheModelUsage>,
 ) -> Vec<TokenRecord> {
@@ -170,7 +163,6 @@ pub fn fast_path_total(
     records
 }
 
-/// Build TokenRecords from fast-path daily data
 pub fn fast_path_daily(
     daily_tokens: &[crate::models::CacheDailyTokens],
     model_usage: &indexmap::IndexMap<String, crate::models::CacheModelUsage>,

@@ -58,7 +58,7 @@ pub fn parse_single_file(
     _project_filter: Option<&str>,
 ) -> Result<Vec<TokenRecord>> {
     let file = std::fs::File::open(path)?;
-    let reader = BufReader::with_capacity(64 * 1024, file);
+    let reader = BufReader::with_capacity(128 * 1024, file);
 
     // Extract session_id from filename (strip .jsonl)
     let session_id = path
