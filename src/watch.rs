@@ -283,9 +283,8 @@ pub fn run_watch(
             println!(
                 "  [{}] Refresh #{} — no changes detected",
                 now,
-                state.refresh_count + 1,
+                state.refresh_count,
             );
-            render_delta(&state, &[]);
         }
 
         println!();
