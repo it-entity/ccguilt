@@ -142,7 +142,7 @@ impl CcguiltServer {
     }
 
     fn build_report(&self, records: Vec<TokenRecord>, label: String) -> UsageReport {
-        let buckets = aggregate_with(records, Period::Total, CO2_KG_PER_KWH, PUE);
+        let buckets = aggregate_with(&records, Period::Total, CO2_KG_PER_KWH, PUE);
 
         let mut input = 0u64;
         let mut output = 0u64;
@@ -196,7 +196,7 @@ impl CcguiltServer {
     /// Otherwise returns None. Persists state in `~/.local/share/ccguilt/mcp_state.json`.
     fn compute_tree_warning(&self) -> Option<String> {
         let all_records = self.load_records(None, None).ok()?;
-        let buckets = aggregate_with(all_records, Period::Total, CO2_KG_PER_KWH, PUE);
+        let buckets = aggregate_with(&all_records, Period::Total, CO2_KG_PER_KWH, PUE);
         let total_trees: f64 = buckets.iter().map(|b| b.impact.trees_destroyed).sum();
         let current_floor = total_trees.floor() as u64;
 

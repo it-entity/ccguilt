@@ -109,6 +109,21 @@ fn main() -> Result<()> {
 
     let data_dir = ClaudeDataDir::new(claude_home.clone());
 
+    let claude_session_count = if include_claude && !args.fast {
+        if let Some(ref pat) = args.project_regex {
+            match data_dir.jsonl_files_regex(pat) {
+                Ok(f) => f.len(),
+                Err(_) => 0,
+            }
+        } else {
+            data_dir.jsonl_files(args.project.as_deref()).len()
+        }
+    } else if include_claude {
+        1
+    } else {
+        0
+    };
+
     let since = args
         .since
         .as_deref()
@@ -165,8 +180,7 @@ fn main() -> Result<()> {
 
     // Early-exit: achievements listing
     if args.achievements {
-        // Need to aggregate first for achievement checking
-        let buckets = aggregate::aggregate_with(records, args.period, rc.co2_kg_per_kwh, rc.pue);
+        let buckets = aggregate::aggregate_with(&records, args.period, rc.co2_kg_per_kwh, rc.pue);
         achievements::check_and_announce(&buckets);
         achievements::show_all();
         return Ok(());
@@ -174,8 +188,7 @@ fn main() -> Result<()> {
 
     // Early-exit: projects ranking
     if args.projects {
-        let mut buckets =
-            aggregate::aggregate_by_project(records.clone(), rc.co2_kg_per_kwh, rc.pue);
+        let mut buckets = aggregate::aggregate_by_project(&records, rc.co2_kg_per_kwh, rc.pue);
         sort_filter::sort_buckets(&mut buckets, cli::SortField::Co2);
         if args.json {
             let json = display::json::render_json(&buckets)?;
@@ -205,7 +218,7 @@ fn main() -> Result<()> {
     // Early-exit: heatmap
     if args.heatmap {
         let buckets =
-            aggregate::aggregate_with(records, cli::Period::Daily, rc.co2_kg_per_kwh, rc.pue);
+            aggregate::aggregate_with(&records, cli::Period::Daily, rc.co2_kg_per_kwh, rc.pue);
         display::heatmap::render_heatmap(&buckets, 12);
         return Ok(());
     }
@@ -225,9 +238,9 @@ fn main() -> Result<()> {
             .cloned()
             .collect();
         let buckets_a =
-            aggregate::aggregate_with(records_a, Period::Total, rc.co2_kg_per_kwh, rc.pue);
+            aggregate::aggregate_with(&records_a, Period::Total, rc.co2_kg_per_kwh, rc.pue);
         let buckets_b =
-            aggregate::aggregate_with(records_b, Period::Total, rc.co2_kg_per_kwh, rc.pue);
+            aggregate::aggregate_with(&records_b, Period::Total, rc.co2_kg_per_kwh, rc.pue);
         display::diff::render_diff(&periods[0], &buckets_a, &periods[1], &buckets_b);
         return Ok(());
     }
@@ -235,12 +248,12 @@ fn main() -> Result<()> {
     // Aggregate
     let mut buckets = match args.group_by {
         Some(cli::GroupBy::Project) => {
-            aggregate::aggregate_by_project(records.clone(), rc.co2_kg_per_kwh, rc.pue)
+            aggregate::aggregate_by_project(&records, rc.co2_kg_per_kwh, rc.pue)
         }
         Some(cli::GroupBy::Model) => {
-            aggregate::aggregate_by_model(records.clone(), rc.co2_kg_per_kwh, rc.pue)
+            aggregate::aggregate_by_model(&records, rc.co2_kg_per_kwh, rc.pue)
         }
-        None => aggregate::aggregate_with(records.clone(), args.period, rc.co2_kg_per_kwh, rc.pue),
+        None => aggregate::aggregate_with(&records, args.period, rc.co2_kg_per_kwh, rc.pue),
     };
 
     // Sort, filter, truncate
@@ -333,6 +346,7 @@ fn main() -> Result<()> {
     } else {
         display::print_header();
         display::print_multi_source_metadata(
+            claude_session_count,
             &data_dir,
             &opencode_data_dir,
             &gemini_data_dir,

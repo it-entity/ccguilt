@@ -244,7 +244,7 @@ pub fn run_watch(
                 println!("\n  No data found. Waiting...");
             } else {
                 let mut buckets = crate::aggregate::aggregate_with(
-                    records,
+                    &records,
                     args.period,
                     rc.co2_kg_per_kwh,
                     rc.pue,
@@ -262,6 +262,7 @@ pub fn run_watch(
 
                 crate::display::print_header();
                 crate::display::print_multi_source_metadata(
+                    0,
                     &ctx.claude_dir,
                     &ctx.opencode_dir,
                     &ctx.gemini_dir,
@@ -282,8 +283,7 @@ pub fn run_watch(
             let now = Local::now().format("%Y-%m-%d %H:%M:%S");
             println!(
                 "  [{}] Refresh #{} — no changes detected",
-                now,
-                state.refresh_count,
+                now, state.refresh_count,
             );
         }
 

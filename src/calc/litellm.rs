@@ -61,26 +61,18 @@ fn table() -> &'static HashMap<String, PricingProfile> {
 ///
 /// Tries a few sensible name variants because Claude Code and OpenCode write
 /// model strings slightly differently (`claude-opus-4-6` vs `anthropic/claude-opus-4-6`).
-pub fn lookup(model_name: &str) -> Option<PricingProfile> {
+///
+/// Returns a `&'static` reference into the lazily-initialized pricing table,
+/// avoiding a per-record copy of the `PricingProfile` struct.
+pub fn lookup(model_name: &str) -> Option<&'static PricingProfile> {
     let t = table();
     if let Some(p) = t.get(model_name) {
-        return Some(PricingProfile {
-            input_per_mtok: p.input_per_mtok,
-            output_per_mtok: p.output_per_mtok,
-            cache_read_per_mtok: p.cache_read_per_mtok,
-            cache_creation_per_mtok: p.cache_creation_per_mtok,
-        });
+        return Some(p);
     }
-    // Strip common provider prefixes
     for prefix in ["anthropic/", "openrouter/anthropic/", "bedrock/"] {
         if let Some(stripped) = model_name.strip_prefix(prefix) {
             if let Some(p) = t.get(stripped) {
-                return Some(PricingProfile {
-                    input_per_mtok: p.input_per_mtok,
-                    output_per_mtok: p.output_per_mtok,
-                    cache_read_per_mtok: p.cache_read_per_mtok,
-                    cache_creation_per_mtok: p.cache_creation_per_mtok,
-                });
+                return Some(p);
             }
         }
     }

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -125,14 +126,12 @@ pub fn parse_gemini_files(
     until: Option<DateTime<Utc>>,
     project_filter: Option<&str>,
 ) -> Result<Vec<TokenRecord>> {
-    let mut all_records = Vec::new();
+    let results: Vec<Vec<TokenRecord>> = files
+        .par_iter()
+        .filter_map(|file| parse_gemini_session(file, since, until, project_filter).ok())
+        .collect();
 
-    for file in files {
-        if let Ok(records) = parse_gemini_session(file, since, until, project_filter) {
-            all_records.extend(records);
-        }
-    }
-
+    let mut all_records: Vec<TokenRecord> = results.into_iter().flatten().collect();
     all_records.sort_by_key(|r| r.timestamp);
     Ok(all_records)
 }

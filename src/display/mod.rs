@@ -74,6 +74,7 @@ pub fn print_metadata(
 
 #[allow(clippy::too_many_arguments)]
 pub fn print_multi_source_metadata(
+    claude_session_count: usize,
     data_dir: &ClaudeDataDir,
     _opencode_dir: &OpenCodeDataDir,
     _gemini_dir: &GeminiDataDir,
@@ -89,11 +90,10 @@ pub fn print_multi_source_metadata(
         if fast {
             parts.push("Fast scan (stats-cache.json)".yellow().to_string());
         } else {
-            let file_count = data_dir.jsonl_files(project_filter).len();
             parts.push(
                 format!(
                     "Claude Code ({} sessions, {} projects)",
-                    file_count,
+                    claude_session_count,
                     data_dir.project_count()
                 )
                 .green()
