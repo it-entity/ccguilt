@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::models::{ModelTier, TokenRecord};
 
 #[allow(dead_code)]
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 struct FileInfo {
     path: PathBuf,
@@ -34,7 +34,7 @@ fn ensure_schema(conn: &Connection) -> Result<()> {
         .exists([])?;
 
     if !has_schema {
-        create_schema_v3(conn)?;
+        create_schema_v4(conn)?;
         return Ok(());
     }
 
@@ -47,15 +47,18 @@ fn ensure_schema(conn: &Connection) -> Result<()> {
     if version < 3 {
         migrate_v2_to_v3(conn)?;
     }
+    if version < 4 {
+        migrate_v3_to_v4(conn)?;
+    }
 
     Ok(())
 }
 
-fn create_schema_v3(conn: &Connection) -> Result<()> {
+fn create_schema_v4(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "
         CREATE TABLE schema_version (version INTEGER NOT NULL);
-        INSERT INTO schema_version (version) VALUES (3);
+        INSERT INTO schema_version (version) VALUES (4);
 
         CREATE TABLE ingested_files (
             file_path   TEXT PRIMARY KEY,
@@ -131,6 +134,24 @@ fn migrate_v2_to_v3(conn: &Connection) -> Result<()> {
         "
         ALTER TABLE token_records ADD COLUMN model_raw TEXT NOT NULL DEFAULT '';
         UPDATE schema_version SET version = 3;
+        ",
+    )?;
+    Ok(())
+}
+
+/// v3 → v4: introduce Fable/Mythos tiers. Rows already ingested with those
+/// models were stored as 'Unknown' — re-derive the tier from model_raw.
+/// Rows with empty model_raw (pre-v3) keep their stored tier.
+fn migrate_v3_to_v4(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        UPDATE token_records
+           SET model = 'Fable'
+         WHERE model_raw != '' AND lower(model_raw) LIKE '%fable%';
+        UPDATE token_records
+           SET model = 'Mythos'
+         WHERE model_raw != '' AND lower(model_raw) LIKE '%mythos%';
+        UPDATE schema_version SET version = 4;
         ",
     )?;
     Ok(())

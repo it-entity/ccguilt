@@ -26,6 +26,8 @@ pub enum ModelTier {
     Opus,
     Sonnet,
     Haiku,
+    Fable,
+    Mythos,
     Glm5,
     Glm47,
     DeepSeekReasoner,
@@ -47,18 +49,20 @@ impl ModelTier {
             Some(ModelTier::Sonnet)
         } else if s_lower.contains("haiku") {
             Some(ModelTier::Haiku)
+        } else if s_lower.contains("fable") {
+            Some(ModelTier::Fable)
+        } else if s_lower.contains("mythos") {
+            Some(ModelTier::Mythos)
         } else if s_lower.contains("glm-5") || s_lower.contains("glm5") {
             Some(ModelTier::Glm5)
         } else if s_lower.contains("glm-4") || s_lower.contains("glm4") {
             Some(ModelTier::Glm47)
         } else if s_lower.contains("deepseek-reasoner") || s_lower.contains("deepseek-r1") {
             Some(ModelTier::DeepSeekReasoner)
-        } else if s_lower.contains("gemini-3") || s_lower.contains("gemini3") {
-            Some(ModelTier::Gemini31Pro)
-        } else if s_lower.contains("gemini-2.5-pro") || s_lower.contains("gemini25pro") {
-            Some(ModelTier::Gemini25Pro)
         } else if s_lower.contains("gemini") && s_lower.contains("flash") {
             Some(ModelTier::GeminiFlash)
+        } else if s_lower.contains("gemini-3") || s_lower.contains("gemini3") {
+            Some(ModelTier::Gemini31Pro)
         } else if s_lower.contains("gemini") {
             Some(ModelTier::Gemini25Pro)
         } else {
@@ -71,6 +75,8 @@ impl ModelTier {
             ModelTier::Opus => "Opus",
             ModelTier::Sonnet => "Sonnet",
             ModelTier::Haiku => "Haiku",
+            ModelTier::Fable => "Fable",
+            ModelTier::Mythos => "Mythos",
             ModelTier::Glm5 => "Glm5",
             ModelTier::Glm47 => "Glm47",
             ModelTier::DeepSeekReasoner => "DeepSeekReasoner",
@@ -86,6 +92,8 @@ impl ModelTier {
             "Opus" => ModelTier::Opus,
             "Sonnet" => ModelTier::Sonnet,
             "Haiku" => ModelTier::Haiku,
+            "Fable" => ModelTier::Fable,
+            "Mythos" => ModelTier::Mythos,
             "Glm5" => ModelTier::Glm5,
             "Glm47" => ModelTier::Glm47,
             "DeepSeekReasoner" => ModelTier::DeepSeekReasoner,
@@ -101,6 +109,8 @@ impl ModelTier {
             ModelTier::Opus => "Opus",
             ModelTier::Sonnet => "Sonnet",
             ModelTier::Haiku => "Haiku",
+            ModelTier::Fable => "Fable",
+            ModelTier::Mythos => "Mythos",
             ModelTier::Glm5 => "GLM-5",
             ModelTier::Glm47 => "GLM-4.7",
             ModelTier::DeepSeekReasoner => "DeepSeek R1",
@@ -115,6 +125,60 @@ impl ModelTier {
 impl std::fmt::Display for ModelTier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.display_name())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tier(s: &str) -> ModelTier {
+        ModelTier::from_model_string(s).unwrap()
+    }
+
+    #[test]
+    fn recognizes_new_frontier_lines() {
+        assert_eq!(tier("claude-fable-5"), ModelTier::Fable);
+        assert_eq!(tier("claude-fable-5-1"), ModelTier::Fable);
+        assert_eq!(tier("anthropic/claude-fable-5"), ModelTier::Fable);
+        assert_eq!(tier("claude-mythos-5"), ModelTier::Mythos);
+        assert_eq!(tier("claude-mythos-5-1"), ModelTier::Mythos);
+        assert_eq!(tier("claude-mythos-preview"), ModelTier::Mythos);
+    }
+
+    #[test]
+    fn recognizes_latest_established_models() {
+        assert_eq!(tier("claude-opus-5"), ModelTier::Opus);
+        assert_eq!(tier("claude-opus-4-8"), ModelTier::Opus);
+        assert_eq!(tier("claude-sonnet-5"), ModelTier::Sonnet);
+        assert_eq!(tier("zai/glm-5.3"), ModelTier::Glm5);
+        assert_eq!(tier("zai/glm-5.3-flash"), ModelTier::Glm5);
+        assert_eq!(tier("gemini-3.1-flash"), ModelTier::GeminiFlash);
+    }
+
+    #[test]
+    fn synthetic_and_unknown() {
+        assert!(ModelTier::from_model_string("<synthetic>").is_none());
+        assert_eq!(tier("gpt-9-turbo"), ModelTier::Unknown);
+    }
+
+    #[test]
+    fn tier_db_roundtrip() {
+        for t in [
+            ModelTier::Opus,
+            ModelTier::Sonnet,
+            ModelTier::Haiku,
+            ModelTier::Fable,
+            ModelTier::Mythos,
+            ModelTier::Glm5,
+            ModelTier::Glm47,
+            ModelTier::DeepSeekReasoner,
+            ModelTier::Gemini25Pro,
+            ModelTier::Gemini31Pro,
+            ModelTier::GeminiFlash,
+        ] {
+            assert_eq!(ModelTier::from_db_str(t.as_db_str()), t);
+        }
     }
 }
 
