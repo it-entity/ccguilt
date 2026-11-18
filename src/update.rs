@@ -4,8 +4,8 @@ use std::fs;
 use std::process::Command;
 
 /// Self-hosted Gitea (LAN only, preferred) — web root of the repo and its releases API.
-const GITEA_REPO_URL: &str = "http://git-aeoru.local:3000/entity/ccguilt";
-const GITEA_API: &str = "http://git-aeoru.local:3000/api/v1/repos/entity/ccguilt/releases";
+const GITEA_REPO_URL: &str = "http://git-aeoru.local/entity/ccguilt";
+const GITEA_API: &str = "http://git-aeoru.local/api/v1/repos/entity/ccguilt/releases";
 /// Public GitHub mirror (fallback) — web root of the repo and its latest-release API.
 const GITHUB_REPO_URL: &str = "https://github.com/it-entity/ccguilt";
 const GITHUB_API: &str = "https://api.github.com/repos/it-entity/ccguilt/releases/latest";
