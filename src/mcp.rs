@@ -25,7 +25,7 @@ use crate::cli::Period;
 use crate::config::{CO2_KG_PER_KWH, PUE};
 use crate::data::db;
 use crate::data::discovery::ClaudeDataDir;
-use crate::dateparse::parse_natural_date;
+use crate::dateparse::{parse_natural_date, parse_natural_date_end};
 use crate::models::TokenRecord;
 
 /// Satirical tree-fallen warning quotes. `{n}` is replaced with the new tree count.
@@ -138,7 +138,7 @@ impl CcguiltServer {
         let dd = ClaudeDataDir::new(self.data_dir.clone());
         let files = dd.jsonl_files(None);
         let db_path = self.data_dir.join("ccguilt.db");
-        db::load_records(&db_path, &files, since, until, None, false, true)
+        db::load_records(&db_path, &files, since, until, None, false, true, true)
     }
 
     fn build_report(&self, records: Vec<TokenRecord>, label: String) -> UsageReport {
@@ -269,7 +269,12 @@ impl CcguiltServer {
             Ok(s) => s,
             Err(e) => return format!("{{\"error\":\"invalid since: {e}\"}}"),
         };
-        let until = match args.until.as_deref().map(parse_natural_date).transpose() {
+        let until = match args
+            .until
+            .as_deref()
+            .map(parse_natural_date_end)
+            .transpose()
+        {
             Ok(u) => u,
             Err(e) => return format!("{{\"error\":\"invalid until: {e}\"}}"),
         };
@@ -280,7 +285,9 @@ impl CcguiltServer {
                 .map(|s| s.format("%Y-%m-%d").to_string())
                 .unwrap_or_else(|| "beginning".to_string()),
             until
-                .map(|u| u.format("%Y-%m-%d").to_string())
+                .map(|u| (u - chrono::Duration::days(1))
+                    .format("%Y-%m-%d")
+                    .to_string())
                 .unwrap_or_else(|| "now".to_string()),
         );
 

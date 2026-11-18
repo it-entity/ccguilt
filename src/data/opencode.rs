@@ -30,7 +30,7 @@ pub fn parse_opencode_db(
 
     if let Some(u) = until {
         param_values.push(Box::new(u.timestamp_millis()));
-        sql.push_str(&format!(" AND m.time_created <= ?{}", param_values.len()));
+        sql.push_str(&format!(" AND m.time_created < ?{}", param_values.len()));
     }
 
     if let Some(pf) = project_filter {

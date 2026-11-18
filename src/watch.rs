@@ -42,7 +42,7 @@ pub fn run_watch(
             let until = args
                 .until
                 .as_deref()
-                .map(crate::dateparse::parse_natural_date)
+                .map(crate::dateparse::parse_natural_date_end)
                 .transpose()?;
             crate::data::jsonl::parse_jsonl_files(&files, since, until, args.project.as_deref())?
         };

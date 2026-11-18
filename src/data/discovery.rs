@@ -34,9 +34,11 @@ impl ClaudeDataDir {
 
         let mut files = Vec::new();
 
+        // Session files can nest deeply: projects/<project>/<session>/subagents/
+        // workflows/<wf>/agent-*.jsonl sits at depth 5. Cap generously, not tightly.
         for entry in WalkDir::new(&projects_dir)
             .min_depth(1)
-            .max_depth(3)
+            .max_depth(10)
             .into_iter()
             .filter_map(|e| e.ok())
         {
@@ -77,7 +79,7 @@ impl ClaudeDataDir {
         let mut files = Vec::new();
         for entry in WalkDir::new(&projects_dir)
             .min_depth(1)
-            .max_depth(3)
+            .max_depth(10)
             .into_iter()
             .filter_map(|e| e.ok())
         {

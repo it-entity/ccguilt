@@ -149,12 +149,13 @@ pub const HAIKU_PRICING: PricingProfile = PricingProfile {
 };
 
 /// Claude Fable 5/5.1 pricing — LiteLLM snapshot (2x Opus).
-/// Fable 5.1 cache reads are $0.025/Mtok; exact per-model rates come from
-/// the LiteLLM lookup via model_raw, this is the tier fallback.
+/// Fable 5 cache reads are $1.00/Mtok (10% of input); Fable 5.1 dropped to
+/// $0.025/Mtok but per-model rates come from the LiteLLM lookup via model_raw —
+/// this is the tier fallback, so it uses the common Fable 5 rate.
 pub const FABLE_PRICING: PricingProfile = PricingProfile {
     input_per_mtok: 10.0,
     output_per_mtok: 50.0,
-    cache_read_per_mtok: 0.10,
+    cache_read_per_mtok: 1.00,
     cache_creation_per_mtok: 12.50,
 };
 
@@ -162,7 +163,7 @@ pub const FABLE_PRICING: PricingProfile = PricingProfile {
 pub const MYTHOS_PRICING: PricingProfile = PricingProfile {
     input_per_mtok: 10.0,
     output_per_mtok: 50.0,
-    cache_read_per_mtok: 0.10,
+    cache_read_per_mtok: 1.00,
     cache_creation_per_mtok: 12.50,
 };
 

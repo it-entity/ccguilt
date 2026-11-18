@@ -96,7 +96,7 @@ pub fn parse_gemini_session(
             }
         }
         if let Some(u) = until {
-            if timestamp > u {
+            if timestamp >= u {
                 continue;
             }
         }
