@@ -107,6 +107,14 @@ pub fn parse_natural_date(s: &str) -> Result<DateTime<Utc>> {
     ))
 }
 
+/// Parse a date for use as an inclusive end-of-day upper bound (`--until`).
+/// `parse_natural_date` snaps to midnight, which would make `--since X --until X`
+/// an empty window. This variant resolves to the next midnight so the whole
+/// day X is selected. Consumers should treat the result as an exclusive bound.
+pub fn parse_natural_date_end(s: &str) -> Result<DateTime<Utc>> {
+    Ok(parse_natural_date(s)? + Duration::days(1))
+}
+
 fn parse_weekday_name(s: &str) -> Option<Weekday> {
     if eq_ci(s, "monday") || eq_ci(s, "mon") {
         Some(Weekday::Mon)
@@ -238,5 +246,30 @@ pub fn parse_co2_budget(s: &str) -> Result<f64> {
         Ok(n.trim().parse::<f64>()?)
     } else {
         Ok(s.parse::<f64>()?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn until_bound_is_next_midnight() {
+        let start = parse_natural_date("2026-03-10").unwrap();
+        let end = parse_natural_date_end("2026-03-10").unwrap();
+        assert_eq!(end - start, Duration::days(1));
+        assert_eq!(
+            end.format("%Y-%m-%d %H:%M:%S").to_string(),
+            "2026-03-11 00:00:00"
+        );
+    }
+
+    #[test]
+    fn same_day_since_until_is_a_full_day_window() {
+        for s in ["today", "yesterday", "7d", "monday", "last-week"] {
+            let since = parse_natural_date(s).unwrap();
+            let until = parse_natural_date_end(s).unwrap();
+            assert_eq!(until - since, Duration::days(1), "input {s}");
+        }
     }
 }

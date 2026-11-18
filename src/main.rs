@@ -132,7 +132,7 @@ fn main() -> Result<()> {
     let until = args
         .until
         .as_deref()
-        .map(dateparse::parse_natural_date)
+        .map(dateparse::parse_natural_date_end)
         .transpose()?;
 
     // Validate flag combinations
@@ -479,6 +479,10 @@ pub fn unified_scan(
             Source::All => None,
         };
 
+        // The file lists above are filtered by --project/--project-regex when
+        // set; only an unfiltered run may purge DB rows for deleted files.
+        let file_list_complete = args.project.is_none() && args.project_regex.is_none();
+
         match data::db::load_all_records(
             &db_path,
             &claude_files,
@@ -490,6 +494,7 @@ pub fn unified_scan(
             args.rebuild_db,
             rc.quiet,
             source_filter,
+            file_list_complete,
         ) {
             Ok(records) => {
                 if !rc.quiet {

@@ -1,9 +1,13 @@
 #!/bin/bash
 # ccguilt installer
-# curl -sSL https://raw.githubusercontent.com/aayushh-code/ccguilt/master/install.sh | bash
+#   Gitea (LAN):  curl -sSL http://git-aeoru.local:3000/entity/ccguilt/raw/branch/master/install.sh | bash
+#   GitHub:       curl -sSL https://raw.githubusercontent.com/it-entity/ccguilt/master/install.sh | bash
+# The binary is downloaded from Gitea when reachable, otherwise from GitHub.
 set -e
 
-REPO="aayushh-code/ccguilt"
+GITEA_URL="http://git-aeoru.local:3000"
+GITEA_REPO="entity/ccguilt"
+GITHUB_REPO="it-entity/ccguilt"
 VERSION="latest"
 INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="ccguilt"
@@ -38,36 +42,71 @@ esac
 
 ASSET_NAME="ccguilt-${OS_TAG}-${ARCH_TAG}"
 
-# Get latest release download URL
-if [ "$VERSION" = "latest" ]; then
-    DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${ASSET_NAME}"
-else
-    DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET_NAME}"
-fi
-
-echo "Detected: ${OS} ${ARCH}"
-echo "Downloading ${ASSET_NAME}..."
-echo ""
-
-TMP=$(mktemp)
 if command -v curl &>/dev/null; then
-    curl -sSL -o "$TMP" "$DOWNLOAD_URL"
+    fetch() { curl -sSL --connect-timeout "$3" -o "$2" "$1"; }
+    fetch_text() { curl -sSL --connect-timeout "$2" "$1"; }
 elif command -v wget &>/dev/null; then
-    wget -q -O "$TMP" "$DOWNLOAD_URL"
+    fetch() { wget -q --connect-timeout="$3" --tries=1 -O "$2" "$1"; }
+    fetch_text() { wget -q --connect-timeout="$2" --tries=1 -O - "$1"; }
 else
     echo "Error: curl or wget required"
     exit 1
 fi
 
-chmod +x "$TMP"
+# A real binary, not an HTML/JSON error page
+is_binary() {
+    [ -s "$1" ] || return 1
+    if command -v file &>/dev/null; then
+        file "$1" | grep -q "executable"
+    else
+        [ "$(wc -c < "$1")" -gt 102400 ]
+    fi
+}
 
-# Verify it's a real binary
-if ! file "$TMP" | grep -q "executable"; then
-    echo "Error: Downloaded file is not a valid binary. Release may not exist yet."
-    echo "Check: https://github.com/${REPO}/releases"
-    rm -f "$TMP"
-    exit 1
+# Gitea first (self-hosted, LAN only): resolve the tag, then download the asset
+gitea_download() {
+    local tag="$VERSION"
+    if [ "$tag" = "latest" ]; then
+        tag=$(fetch_text "${GITEA_URL}/api/v1/repos/${GITEA_REPO}/releases/latest" 3 2>/dev/null \
+            | grep -o '"tag_name":"[^"]*"' | head -1 | cut -d'"' -f4)
+    fi
+    [ -n "$tag" ] || return 1
+    fetch "${GITEA_URL}/${GITEA_REPO}/releases/download/${tag}/${ASSET_NAME}" "$TMP" 3 2>/dev/null \
+        && is_binary "$TMP"
+}
+
+# GitHub fallback (public)
+github_download() {
+    local url
+    if [ "$VERSION" = "latest" ]; then
+        url="https://github.com/${GITHUB_REPO}/releases/latest/download/${ASSET_NAME}"
+    else
+        url="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/${ASSET_NAME}"
+    fi
+    fetch "$url" "$TMP" 10 2>/dev/null && is_binary "$TMP"
+}
+
+echo "Detected: ${OS} ${ARCH}"
+echo ""
+
+TMP=$(mktemp)
+echo "Downloading ${ASSET_NAME} from Gitea (${GITEA_URL})..."
+if gitea_download; then
+    echo "Downloaded from Gitea."
+else
+    echo "Gitea unavailable or has no ${ASSET_NAME}; trying GitHub..."
+    if github_download; then
+        echo "Downloaded from GitHub."
+    else
+        echo "Error: could not download a valid binary from Gitea or GitHub."
+        echo "Check: ${GITEA_URL}/${GITEA_REPO}/releases"
+        echo "       https://github.com/${GITHUB_REPO}/releases"
+        rm -f "$TMP"
+        exit 1
+    fi
 fi
+
+chmod +x "$TMP"
 
 # Install
 if [ -w "$INSTALL_DIR" ]; then

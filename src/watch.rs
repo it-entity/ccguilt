@@ -117,7 +117,7 @@ fn load_records(
     let until = args
         .until
         .as_deref()
-        .map(crate::dateparse::parse_natural_date)
+        .map(crate::dateparse::parse_natural_date_end)
         .transpose()?;
 
     if ctx.include_claude && args.fast {

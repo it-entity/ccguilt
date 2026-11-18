@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::models::{ModelTier, TokenRecord};
 
 #[allow(dead_code)]
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 struct FileInfo {
     path: PathBuf,
@@ -34,7 +34,7 @@ fn ensure_schema(conn: &Connection) -> Result<()> {
         .exists([])?;
 
     if !has_schema {
-        create_schema_v3(conn)?;
+        create_schema_v4(conn)?;
         return Ok(());
     }
 
@@ -47,15 +47,18 @@ fn ensure_schema(conn: &Connection) -> Result<()> {
     if version < 3 {
         migrate_v2_to_v3(conn)?;
     }
+    if version < 4 {
+        migrate_v3_to_v4(conn)?;
+    }
 
     Ok(())
 }
 
-fn create_schema_v3(conn: &Connection) -> Result<()> {
+fn create_schema_v4(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "
         CREATE TABLE schema_version (version INTEGER NOT NULL);
-        INSERT INTO schema_version (version) VALUES (3);
+        INSERT INTO schema_version (version) VALUES (4);
 
         CREATE TABLE ingested_files (
             file_path   TEXT PRIMARY KEY,
@@ -136,6 +139,24 @@ fn migrate_v2_to_v3(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// v3 → v4: introduce Fable/Mythos tiers. Rows already ingested with those
+/// models were stored as 'Unknown' — re-derive the tier from model_raw.
+/// Rows with empty model_raw (pre-v3) keep their stored tier.
+fn migrate_v3_to_v4(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        UPDATE token_records
+           SET model = 'Fable'
+         WHERE model_raw != '' AND lower(model_raw) LIKE '%fable%';
+        UPDATE token_records
+           SET model = 'Mythos'
+         WHERE model_raw != '' AND lower(model_raw) LIKE '%mythos%';
+        UPDATE schema_version SET version = 4;
+        ",
+    )?;
+    Ok(())
+}
+
 fn stat_files(paths: &[PathBuf]) -> Vec<FileInfo> {
     paths
         .iter()
@@ -149,6 +170,56 @@ fn stat_files(paths: &[PathBuf]) -> Vec<FileInfo> {
             })
         })
         .collect()
+}
+
+/// Remove cached records for session files that no longer exist on disk, so
+/// the DB mirrors the live data directory (Claude Code prunes old sessions).
+/// Only call with a COMPLETE file list for the given source — a
+/// project-filtered list would purge unrelated projects' records.
+fn purge_deleted_files(
+    conn: &Connection,
+    disk_files: &[FileInfo],
+    source: &str,
+    quiet: bool,
+) -> Result<()> {
+    let live: std::collections::HashSet<String> = disk_files
+        .iter()
+        .map(|fi| fi.path.to_string_lossy().to_string())
+        .collect();
+
+    let cached: Vec<String> = conn
+        .prepare("SELECT DISTINCT source_file FROM token_records WHERE source_type = ?1")?
+        .query_map(params![source], |row| row.get(0))?
+        .filter_map(|r| r.ok())
+        .filter(|p: &String| !live.contains(p.as_str()))
+        .collect();
+
+    if cached.is_empty() {
+        return Ok(());
+    }
+
+    if !quiet {
+        use colored::Colorize;
+        eprintln!(
+            "  {} Purging {} deleted session files from SQLite cache...",
+            ">>".green().bold(),
+            cached.len()
+        );
+    }
+
+    conn.execute_batch("BEGIN")?;
+    for path in &cached {
+        conn.execute(
+            "DELETE FROM token_records WHERE source_file = ?1",
+            params![path],
+        )?;
+        conn.execute(
+            "DELETE FROM ingested_files WHERE file_path = ?1",
+            params![path],
+        )?;
+    }
+    conn.execute_batch("COMMIT")?;
+    Ok(())
 }
 
 fn classify_files(conn: &Connection, disk_files: &[FileInfo]) -> Result<Vec<usize>> {
@@ -249,7 +320,7 @@ fn query_records(
     }
     if let Some(u) = until {
         param_values.push(u.to_rfc3339());
-        sql.push_str(&format!(" AND timestamp <= ?{}", param_values.len()));
+        sql.push_str(&format!(" AND timestamp < ?{}", param_values.len()));
     }
     if let Some(pf) = project_filter {
         param_values.push(format!("%{}%", pf));
@@ -292,8 +363,16 @@ fn query_records(
     Ok(records)
 }
 
-fn ingest_claude_files(conn: &Connection, jsonl_files: &[PathBuf], quiet: bool) -> Result<()> {
+fn ingest_claude_files(
+    conn: &Connection,
+    jsonl_files: &[PathBuf],
+    quiet: bool,
+    purge_missing: bool,
+) -> Result<()> {
     let disk_files = stat_files(jsonl_files);
+    if purge_missing && !disk_files.is_empty() {
+        purge_deleted_files(conn, &disk_files, "claude", quiet)?;
+    }
     let need_ingestion_indices = classify_files(conn, &disk_files)?;
 
     if !need_ingestion_indices.is_empty() {
@@ -348,8 +427,16 @@ fn ingest_claude_files(conn: &Connection, jsonl_files: &[PathBuf], quiet: bool) 
     Ok(())
 }
 
-fn ingest_gemini_files(conn: &Connection, gemini_files: &[PathBuf], quiet: bool) -> Result<()> {
+fn ingest_gemini_files(
+    conn: &Connection,
+    gemini_files: &[PathBuf],
+    quiet: bool,
+    purge_missing: bool,
+) -> Result<()> {
     let disk_files = stat_files(gemini_files);
+    if purge_missing && !disk_files.is_empty() {
+        purge_deleted_files(conn, &disk_files, "gemini", quiet)?;
+    }
     let need_ingestion_indices = classify_files(conn, &disk_files)?;
 
     if !need_ingestion_indices.is_empty() {
@@ -579,6 +666,7 @@ pub fn ingest_opencode(conn: &Connection, opencode_db_path: &Path, quiet: bool) 
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn load_records(
     db_path: &Path,
     jsonl_files: &[PathBuf],
@@ -587,6 +675,7 @@ pub fn load_records(
     project_filter: Option<&str>,
     rebuild: bool,
     quiet: bool,
+    file_list_complete: bool,
 ) -> Result<Vec<TokenRecord>> {
     if rebuild && db_path.exists() {
         std::fs::remove_file(db_path)?;
@@ -595,7 +684,7 @@ pub fn load_records(
     let conn = open_db(db_path)?;
     ensure_schema(&conn)?;
 
-    ingest_claude_files(&conn, jsonl_files, quiet)?;
+    ingest_claude_files(&conn, jsonl_files, quiet, file_list_complete)?;
 
     query_records(&conn, since, until, project_filter, None)
 }
@@ -612,6 +701,7 @@ pub fn load_all_records(
     rebuild: bool,
     quiet: bool,
     source_type_filter: Option<&str>,
+    file_list_complete: bool,
 ) -> Result<Vec<TokenRecord>> {
     if rebuild && ccguilt_db_path.exists() {
         std::fs::remove_file(ccguilt_db_path)?;
@@ -621,7 +711,12 @@ pub fn load_all_records(
     ensure_schema(&conn)?;
 
     if source_type_filter != Some("opencode") && source_type_filter != Some("gemini") {
-        ingest_claude_files(&conn, jsonl_files, quiet)?;
+        ingest_claude_files(
+            &conn,
+            jsonl_files,
+            quiet,
+            file_list_complete && !jsonl_files.is_empty(),
+        )?;
     }
 
     if source_type_filter != Some("claude") && source_type_filter != Some("gemini") {
@@ -633,7 +728,12 @@ pub fn load_all_records(
     }
 
     if source_type_filter != Some("claude") && source_type_filter != Some("opencode") {
-        ingest_gemini_files(&conn, gemini_files, quiet)?;
+        ingest_gemini_files(
+            &conn,
+            gemini_files,
+            quiet,
+            file_list_complete && !gemini_files.is_empty(),
+        )?;
     }
 
     query_records(&conn, since, until, project_filter, source_type_filter)

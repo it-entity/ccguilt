@@ -33,6 +33,23 @@ pub const HAIKU_ENERGY: EnergyProfile = EnergyProfile {
     cache_creation_multiplier: 1.0,
 };
 
+/// Claude Fable 5/5.1 — no published measurements yet; extrapolated from Opus
+/// by price ratio (Fable is 2x Opus per token) as a proxy for model scale.
+pub const FABLE_ENERGY: EnergyProfile = EnergyProfile {
+    wh_per_input_token: 0.02025,
+    wh_per_output_token: 0.02025,
+    cache_read_multiplier: 0.10,
+    cache_creation_multiplier: 1.0,
+};
+
+/// Claude Mythos 5/5.1 — same price tier as Fable, same extrapolation.
+pub const MYTHOS_ENERGY: EnergyProfile = EnergyProfile {
+    wh_per_input_token: 0.02025,
+    wh_per_output_token: 0.02025,
+    cache_read_multiplier: 0.10,
+    cache_creation_multiplier: 1.0,
+};
+
 pub const GLM5_ENERGY: EnergyProfile = EnergyProfile {
     wh_per_input_token: 0.00030,
     wh_per_output_token: 0.00030,
@@ -87,6 +104,8 @@ pub fn energy_profile(tier: ModelTier) -> &'static EnergyProfile {
         ModelTier::Opus => &OPUS_ENERGY,
         ModelTier::Sonnet => &SONNET_ENERGY,
         ModelTier::Haiku => &HAIKU_ENERGY,
+        ModelTier::Fable => &FABLE_ENERGY,
+        ModelTier::Mythos => &MYTHOS_ENERGY,
         ModelTier::Glm5 => &GLM5_ENERGY,
         ModelTier::Glm47 => &GLM47_ENERGY,
         ModelTier::DeepSeekReasoner => &DEEPSEEK_R1_ENERGY,
@@ -127,6 +146,25 @@ pub const HAIKU_PRICING: PricingProfile = PricingProfile {
     output_per_mtok: 5.0,
     cache_read_per_mtok: 0.10,
     cache_creation_per_mtok: 1.25,
+};
+
+/// Claude Fable 5/5.1 pricing — LiteLLM snapshot (2x Opus).
+/// Fable 5 cache reads are $1.00/Mtok (10% of input); Fable 5.1 dropped to
+/// $0.025/Mtok but per-model rates come from the LiteLLM lookup via model_raw —
+/// this is the tier fallback, so it uses the common Fable 5 rate.
+pub const FABLE_PRICING: PricingProfile = PricingProfile {
+    input_per_mtok: 10.0,
+    output_per_mtok: 50.0,
+    cache_read_per_mtok: 1.00,
+    cache_creation_per_mtok: 12.50,
+};
+
+/// Claude Mythos 5/5.1/preview pricing — same price point as Fable.
+pub const MYTHOS_PRICING: PricingProfile = PricingProfile {
+    input_per_mtok: 10.0,
+    output_per_mtok: 50.0,
+    cache_read_per_mtok: 1.00,
+    cache_creation_per_mtok: 12.50,
 };
 
 /// GLM-5 pricing — Z.ai official (docs.z.ai/guides/overview/pricing)
@@ -188,6 +226,8 @@ pub fn pricing_profile(tier: ModelTier) -> &'static PricingProfile {
         ModelTier::Opus => &OPUS_PRICING,
         ModelTier::Sonnet => &SONNET_PRICING,
         ModelTier::Haiku => &HAIKU_PRICING,
+        ModelTier::Fable => &FABLE_PRICING,
+        ModelTier::Mythos => &MYTHOS_PRICING,
         ModelTier::Glm5 => &GLM5_PRICING,
         ModelTier::Glm47 => &GLM47_PRICING,
         ModelTier::DeepSeekReasoner => &DEEPSEEK_R1_PRICING,

@@ -18,11 +18,14 @@ pub fn render_table(buckets: &[UsageBucket], opts: &DisplayOptions) {
         Cell::new("Period").set_alignment(CellAlignment::Left),
         Cell::new("Tokens").set_alignment(CellAlignment::Right),
         Cell::new("Cost").set_alignment(CellAlignment::Right),
-        Cell::new("Energy").set_alignment(CellAlignment::Right),
-        Cell::new("CO2").set_alignment(CellAlignment::Right),
-        Cell::new("Water").set_alignment(CellAlignment::Right),
-        Cell::new("Trees").set_alignment(CellAlignment::Right),
     ];
+    if opts.by_model && !opts.show_efficiency {
+        headers.push(Cell::new("$/Mtok").set_alignment(CellAlignment::Right));
+    }
+    headers.push(Cell::new("Energy").set_alignment(CellAlignment::Right));
+    headers.push(Cell::new("CO2").set_alignment(CellAlignment::Right));
+    headers.push(Cell::new("Water").set_alignment(CellAlignment::Right));
+    headers.push(Cell::new("Trees").set_alignment(CellAlignment::Right));
     if opts.show_efficiency {
         headers.push(Cell::new("$/Mtok").set_alignment(CellAlignment::Right));
         headers.push(Cell::new("gCO2/Mtok").set_alignment(CellAlignment::Right));
@@ -70,11 +73,22 @@ pub fn render_table(buckets: &[UsageBucket], opts: &DisplayOptions) {
             Cell::new(&label),
             Cell::new(format_tokens(bucket.tokens.total_tokens())),
             Cell::new(format_cost(bucket.cost.total_cost_usd)),
-            Cell::new(format_energy(bucket.impact.energy_wh)),
-            Cell::new(format_co2(bucket.impact.co2_grams)),
-            Cell::new(format_water(bucket.impact.water_ml)),
-            Cell::new(format_trees(bucket.impact.trees_destroyed)),
         ];
+        if opts.by_model && !opts.show_efficiency {
+            let mtok = bucket.tokens.total_tokens() as f64 / 1_000_000.0;
+            if mtok > 0.0 {
+                row.push(Cell::new(format!(
+                    "{:.2}",
+                    bucket.cost.total_cost_usd / mtok
+                )));
+            } else {
+                row.push(Cell::new("-"));
+            }
+        }
+        row.push(Cell::new(format_energy(bucket.impact.energy_wh)));
+        row.push(Cell::new(format_co2(bucket.impact.co2_grams)));
+        row.push(Cell::new(format_water(bucket.impact.water_ml)));
+        row.push(Cell::new(format_trees(bucket.impact.trees_destroyed)));
         if opts.show_efficiency {
             let mtok = bucket.tokens.total_tokens() as f64 / 1_000_000.0;
             if mtok > 0.0 {
@@ -129,13 +143,28 @@ pub fn render_table(buckets: &[UsageBucket], opts: &DisplayOptions) {
                     Cell::new(format_tokens(model_total)).fg(comfy_table::Color::DarkGrey),
                     Cell::new(format_cost(model_cost.total_cost_usd))
                         .fg(comfy_table::Color::DarkGrey),
+                ];
+                if opts.by_model && !opts.show_efficiency {
+                    let mtok = model_total as f64 / 1_000_000.0;
+                    sub_row.push(
+                        Cell::new(format!("{:.2}", model_cost.total_cost_usd / mtok))
+                            .fg(comfy_table::Color::DarkGrey),
+                    );
+                }
+                sub_row.push(
                     Cell::new(format_energy(model_impact.energy_wh))
                         .fg(comfy_table::Color::DarkGrey),
+                );
+                sub_row.push(
                     Cell::new(format_co2(model_impact.co2_grams)).fg(comfy_table::Color::DarkGrey),
+                );
+                sub_row.push(
                     Cell::new(format_water(model_impact.water_ml)).fg(comfy_table::Color::DarkGrey),
+                );
+                sub_row.push(
                     Cell::new(format_trees(model_impact.trees_destroyed))
                         .fg(comfy_table::Color::DarkGrey),
-                ];
+                );
                 if opts.show_efficiency {
                     let mtok = model_total as f64 / 1_000_000.0;
                     if mtok > 0.0 {
@@ -189,11 +218,21 @@ pub fn render_table(buckets: &[UsageBucket], opts: &DisplayOptions) {
                 .fg(comfy_table::Color::White),
             Cell::new(format_tokens(total_tokens)).fg(comfy_table::Color::White),
             Cell::new(format_cost(total_cost)).fg(comfy_table::Color::White),
-            Cell::new(format_energy(total_energy)).fg(comfy_table::Color::White),
-            Cell::new(format_co2(total_co2)).fg(comfy_table::Color::White),
-            Cell::new(format_water(total_water)).fg(comfy_table::Color::White),
-            Cell::new(format_trees(total_trees)).fg(comfy_table::Color::White),
         ];
+        if opts.by_model && !opts.show_efficiency {
+            let mtok = total_tokens as f64 / 1_000_000.0;
+            if mtok > 0.0 {
+                total_row.push(
+                    Cell::new(format!("{:.2}", total_cost / mtok)).fg(comfy_table::Color::White),
+                );
+            } else {
+                total_row.push(Cell::new("-").fg(comfy_table::Color::White));
+            }
+        }
+        total_row.push(Cell::new(format_energy(total_energy)).fg(comfy_table::Color::White));
+        total_row.push(Cell::new(format_co2(total_co2)).fg(comfy_table::Color::White));
+        total_row.push(Cell::new(format_water(total_water)).fg(comfy_table::Color::White));
+        total_row.push(Cell::new(format_trees(total_trees)).fg(comfy_table::Color::White));
         if opts.show_efficiency {
             let mtok = total_tokens as f64 / 1_000_000.0;
             if mtok > 0.0 {

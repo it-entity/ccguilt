@@ -135,7 +135,7 @@ pub fn parse_single_file(
             }
         }
         if let Some(until) = until {
-            if timestamp > until {
+            if timestamp >= until {
                 continue;
             }
         }
