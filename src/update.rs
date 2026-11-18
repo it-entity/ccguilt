@@ -140,7 +140,8 @@ fn try_github() -> Result<(String, String)> {
 
 fn try_gitea() -> Result<(String, String)> {
     let output = Command::new("curl")
-        .args(["-s", "-L", "--connect-timeout", "3", GITEA_API])
+        // .local names resolve over mDNS, which can take several seconds
+        .args(["-s", "-L", "--connect-timeout", "8", GITEA_API])
         .output()
         .map_err(|_| anyhow!("curl not found"))?;
 
