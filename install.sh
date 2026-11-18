@@ -1,12 +1,14 @@
 #!/bin/bash
 # ccguilt installer
-#   Gitea (LAN):  curl -sSL http://git-aeoru.local:3000/entity/ccguilt/raw/branch/master/install.sh | bash
+#   Gitea (LAN):  curl -sSL http://git-aeoru.local/entity/ccguilt/raw/branch/master/install.sh | bash
 #   GitHub:       curl -sSL https://raw.githubusercontent.com/it-entity/ccguilt/master/install.sh | bash
 # The binary is downloaded from Gitea when reachable, otherwise from GitHub.
 set -e
 
-GITEA_URL="http://git-aeoru.local:3000"
+GITEA_URL="http://git-aeoru.local"
 GITEA_REPO="entity/ccguilt"
+# .local names resolve over mDNS, which can take several seconds
+GITEA_TIMEOUT=8
 GITHUB_REPO="it-entity/ccguilt"
 VERSION="latest"
 INSTALL_DIR="/usr/local/bin"
@@ -67,11 +69,11 @@ is_binary() {
 gitea_download() {
     local tag="$VERSION"
     if [ "$tag" = "latest" ]; then
-        tag=$(fetch_text "${GITEA_URL}/api/v1/repos/${GITEA_REPO}/releases/latest" 3 2>/dev/null \
+        tag=$(fetch_text "${GITEA_URL}/api/v1/repos/${GITEA_REPO}/releases/latest" "$GITEA_TIMEOUT" 2>/dev/null \
             | grep -o '"tag_name":"[^"]*"' | head -1 | cut -d'"' -f4)
     fi
     [ -n "$tag" ] || return 1
-    fetch "${GITEA_URL}/${GITEA_REPO}/releases/download/${tag}/${ASSET_NAME}" "$TMP" 3 2>/dev/null \
+    fetch "${GITEA_URL}/${GITEA_REPO}/releases/download/${tag}/${ASSET_NAME}" "$TMP" "$GITEA_TIMEOUT" 2>/dev/null \
         && is_binary "$TMP"
 }
 

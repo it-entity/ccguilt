@@ -9,7 +9,7 @@ Reads your local Claude Code session data and computes token usage, API cost, en
 From Gitea (self-hosted, LAN only):
 
 ```bash
-curl -sSL http://git-aeoru.local:3000/entity/ccguilt/raw/branch/master/install.sh | bash
+curl -sSL http://git-aeoru.local/entity/ccguilt/raw/branch/master/install.sh | bash
 ```
 
 Or from GitHub:

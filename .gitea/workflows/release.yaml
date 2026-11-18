@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          git clone --depth 1 --branch ${GITHUB_REF_NAME} http://git-aeoru.local:3000/entity/ccguilt.git .
+          git clone --depth 1 --branch ${GITHUB_REF_NAME} http://git-aeoru.local/entity/ccguilt.git .
 
       - name: Install Rust toolchain
         run: |
@@ -36,7 +36,7 @@ jobs:
         env:
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
         run: |
-          API=http://git-aeoru.local:3000/api/v1/repos/entity/ccguilt
+          API=http://git-aeoru.local/api/v1/repos/entity/ccguilt
           TAG=${GITHUB_REF_NAME}
           RELEASE_ID=$(curl -s -X POST \
             -H "Authorization: token ${GITEA_TOKEN}" \
