@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          git clone --depth 1 http://192.168.100.195/aayush/ccguilt.git .
+          git clone --depth 1 http://git-aeoru.local:3000/entity/ccguilt.git .
           git fetch origin ${{ github.sha }} && git checkout ${{ github.sha }} || true
 
       - name: Rust version

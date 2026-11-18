@@ -3,7 +3,11 @@ use colored::Colorize;
 use std::fs;
 use std::process::Command;
 
-const GITEA_API: &str = "http://192.168.100.195/api/v1/repos/aayush/ccguilt/releases";
+/// Self-hosted Gitea (LAN only) — web root of the repo and its releases API.
+const GITEA_REPO_URL: &str = "http://git-aeoru.local:3000/entity/ccguilt";
+const GITEA_API: &str = "http://git-aeoru.local:3000/api/v1/repos/entity/ccguilt/releases";
+/// Public GitHub mirror — web root of the repo and its latest-release API.
+const GITHUB_REPO_URL: &str = "https://github.com/aayushh-code/ccguilt";
 const GITHUB_API: &str = "https://api.github.com/repos/aayushh-code/ccguilt/releases/latest";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -137,8 +141,8 @@ fn try_github() -> Result<(String, String)> {
 
     let asset_name = platform_asset_name();
     let download_url = format!(
-        "https://github.com/aayushh-code/ccguilt/releases/download/{}/{}",
-        tag, asset_name
+        "{}/releases/download/{}/{}",
+        GITHUB_REPO_URL, tag, asset_name
     );
 
     Ok((tag, download_url))
@@ -166,7 +170,8 @@ fn try_gitea() -> Result<(String, String)> {
         .ok_or_else(|| anyhow!("Invalid release format."))?
         .to_string();
 
-    // Gitea uses amd64 naming convention; browser_download_url uses unresolvable git.aeoru hostname
+    // Gitea uses amd64 naming convention; build the URL from GITEA_REPO_URL rather than
+    // trusting browser_download_url, which follows the server's configured ROOT_URL
     let expected = gitea_asset_name();
     let download_url = latest["assets"]
         .as_array()
@@ -175,8 +180,8 @@ fn try_gitea() -> Result<(String, String)> {
                 let name = a["name"].as_str()?;
                 if name == expected {
                     Some(format!(
-                        "http://192.168.100.195/aayush/ccguilt/releases/download/{}/{}",
-                        tag, name
+                        "{}/releases/download/{}/{}",
+                        GITEA_REPO_URL, tag, name
                     ))
                 } else {
                     None

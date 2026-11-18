@@ -13,7 +13,7 @@ curl -sSL https://raw.githubusercontent.com/aayushh-code/ccguilt/master/install.
 Or from Gitea (LAN only):
 
 ```bash
-curl -sSL http://192.168.100.195/aayush/ccguilt/raw/branch/master/install.sh | bash
+curl -sSL http://git-aeoru.local:3000/entity/ccguilt/raw/branch/master/install.sh | bash
 ```
 
 Or build from source:
