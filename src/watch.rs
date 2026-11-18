@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use chrono::Local;
 use colored::Colorize;
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use crossterm::{cursor, execute, terminal};
 
 use crate::cli::{Args, WatchInterval};
@@ -196,7 +196,82 @@ fn render_delta(state: &WatchState, buckets: &[UsageBucket]) {
     println!("  {} {}", "Since last check:".bold(), parts.join(" | "));
 }
 
-#[allow(clippy::too_many_arguments)]
+enum WaitOutcome {
+    Tick,
+    Quit,
+}
+
+/// Sleep until the next refresh, returning early if the user asks to stop.
+/// Raw mode is held only while waiting so q / Esc / Ctrl+C arrive without
+/// Enter, and normal line output is unaffected between waits.
+fn wait_for_tick(timeout: Duration) -> WaitOutcome {
+    if terminal::enable_raw_mode().is_err() {
+        // No terminal (piped or detached): plain sleep; SIGINT still ends the process.
+        std::thread::sleep(timeout);
+        return WaitOutcome::Tick;
+    }
+    let outcome = wait_for_key(timeout);
+    let _ = terminal::disable_raw_mode();
+    outcome
+}
+
+fn wait_for_key(timeout: Duration) -> WaitOutcome {
+    let start = Instant::now();
+    loop {
+        let remaining = timeout.saturating_sub(start.elapsed());
+        if remaining.is_zero() {
+            return WaitOutcome::Tick;
+        }
+        match event::poll(remaining) {
+            Ok(true) => match event::read() {
+                Ok(Event::Key(key)) => {
+                    let ctrl_c = key.code == KeyCode::Char('c')
+                        && key.modifiers.contains(KeyModifiers::CONTROL);
+                    if ctrl_c || matches!(key.code, KeyCode::Char('q') | KeyCode::Esc) {
+                        return WaitOutcome::Quit;
+                    }
+                }
+                Ok(_) => {}
+                Err(_) => {
+                    // Input is gone; don't spin, just wait out the interval.
+                    std::thread::sleep(remaining);
+                    return WaitOutcome::Tick;
+                }
+            },
+            Ok(false) => return WaitOutcome::Tick,
+            Err(_) => {
+                std::thread::sleep(remaining);
+                return WaitOutcome::Tick;
+            }
+        }
+    }
+}
+
+fn render_report(
+    buckets: &[UsageBucket],
+    args: &Args,
+    ctx: &WatchContext,
+    display_opts: &DisplayOptions,
+) {
+    if buckets.is_empty() {
+        println!("\n  No data found. Waiting...");
+        return;
+    }
+    crate::display::print_header();
+    crate::display::print_multi_source_metadata(
+        0,
+        &ctx.claude_dir,
+        &ctx.opencode_dir,
+        &ctx.gemini_dir,
+        ctx.include_claude,
+        ctx.include_opencode,
+        ctx.include_gemini,
+        args.project.as_deref(),
+        args.fast,
+    );
+    crate::display::table::render_table(buckets, display_opts);
+}
+
 pub fn run_watch(
     interval: &WatchInterval,
     args: &Args,
@@ -206,8 +281,9 @@ pub fn run_watch(
 ) -> anyhow::Result<()> {
     let timeout = Duration::from_secs(interval.as_secs());
     let mut state = WatchState::new();
-
-    execute!(io::stdout(), terminal::Clear(terminal::ClearType::All))?;
+    // Last rendered report, re-shown on ticks where nothing changed on disk.
+    let mut buckets: Vec<UsageBucket> = Vec::new();
+    let mut last_change = Local::now();
 
     loop {
         let fp = if args.fast {
@@ -221,99 +297,64 @@ pub fn run_watch(
             _ => true,
         };
 
+        let mut fresh: Option<Vec<UsageBucket>> = None;
         if changed {
             state.fingerprint = fp;
-
             let records = load_records(args, ctx, rc)?;
-
-            execute!(
-                io::stdout(),
-                terminal::Clear(terminal::ClearType::All),
-                cursor::MoveTo(0, 0)
-            )?;
-
-            let now = Local::now().format("%Y-%m-%d %H:%M:%S");
-            println!(
-                "  [{}] Refresh #{} — next in {}",
-                now,
-                state.refresh_count + 1,
-                interval.display(),
-            );
-
-            if records.is_empty() {
-                println!("\n  No data found. Waiting...");
-            } else {
-                let mut buckets = crate::aggregate::aggregate_with(
-                    &records,
-                    args.period,
-                    rc.co2_kg_per_kwh,
-                    rc.pue,
-                );
-
-                if let Some(field) = args.sort {
-                    crate::sort_filter::sort_buckets(&mut buckets, field);
-                }
-                if let Some(top_n) = args.top {
-                    buckets.truncate(top_n);
-                }
-
-                render_delta(&state, &buckets);
-                state.update_from(&buckets);
-
-                crate::display::print_header();
-                crate::display::print_multi_source_metadata(
-                    0,
-                    &ctx.claude_dir,
-                    &ctx.opencode_dir,
-                    &ctx.gemini_dir,
-                    ctx.include_claude,
-                    ctx.include_opencode,
-                    ctx.include_gemini,
-                    args.project.as_deref(),
-                    args.fast,
-                );
-                crate::display::table::render_table(&buckets, display_opts);
+            let mut new_buckets =
+                crate::aggregate::aggregate_with(&records, args.period, rc.co2_kg_per_kwh, rc.pue);
+            if let Some(field) = args.sort {
+                crate::sort_filter::sort_buckets(&mut new_buckets, field);
             }
-        } else {
-            execute!(
-                io::stdout(),
-                terminal::Clear(terminal::ClearType::All),
-                cursor::MoveTo(0, 0)
-            )?;
-            let now = Local::now().format("%Y-%m-%d %H:%M:%S");
-            println!(
-                "  [{}] Refresh #{} — no changes detected",
-                now, state.refresh_count,
-            );
+            if let Some(top_n) = args.top {
+                new_buckets.truncate(top_n);
+            }
+            fresh = Some(new_buckets);
         }
+
+        execute!(
+            io::stdout(),
+            terminal::Clear(terminal::ClearType::All),
+            cursor::MoveTo(0, 0)
+        )?;
+
+        let now = Local::now();
+        match fresh {
+            Some(new_buckets) => {
+                println!(
+                    "  [{}] Refresh #{} — next in {}",
+                    now.format("%Y-%m-%d %H:%M:%S"),
+                    state.refresh_count + 1,
+                    interval.display(),
+                );
+                render_delta(&state, &new_buckets);
+                state.update_from(&new_buckets);
+                buckets = new_buckets;
+                last_change = now;
+            }
+            None => {
+                println!(
+                    "  [{}] Refresh #{} — no changes since {}, next check in {}",
+                    now.format("%Y-%m-%d %H:%M:%S"),
+                    state.refresh_count,
+                    last_change.format("%H:%M:%S"),
+                    interval.display(),
+                );
+            }
+        }
+        render_report(&buckets, args, ctx, display_opts);
 
         println!();
         println!(
-            "  {} (Ctrl+C or q to stop)",
+            "  {} (q, Esc or Ctrl+C to stop)",
             format!("Refreshing every {}...", interval.display()).dimmed()
         );
-
         io::stdout().flush()?;
 
-        let start = Instant::now();
-        loop {
-            let remaining = timeout.saturating_sub(start.elapsed());
-            if remaining.is_zero() {
-                break;
-            }
-            match event::poll(remaining) {
-                Ok(true) => {
-                    if let Ok(Event::Key(key)) = event::read() {
-                        if key.code == KeyCode::Char('q') || key.code == KeyCode::Esc {
-                            println!("\n  Watch stopped.");
-                            print_final_summary(&state, interval);
-                            return Ok(());
-                        }
-                    }
-                }
-                Ok(false) => break,
-                Err(_) => break,
-            }
+        if let WaitOutcome::Quit = wait_for_tick(timeout) {
+            println!("\n  Watch stopped.");
+            print_final_summary(&state, interval);
+            return Ok(());
         }
     }
 }
