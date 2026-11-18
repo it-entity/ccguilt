@@ -133,19 +133,16 @@ impl AppState {
             return;
         }
 
-        // Try to go one level deeper
         let new_buckets = if label.contains("-W") {
-            // Week → daily
             crate::aggregate::aggregate_with(
-                filtered,
+                &filtered,
                 crate::cli::Period::Daily,
                 self.rc.co2_kg_per_kwh,
                 self.rc.pue,
             )
         } else if label.len() == 10 {
-            // Day (YYYY-MM-DD) → session
             crate::aggregate::aggregate_with(
-                filtered,
+                &filtered,
                 crate::cli::Period::Session,
                 self.rc.co2_kg_per_kwh,
                 self.rc.pue,

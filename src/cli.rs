@@ -1,5 +1,7 @@
-use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
+use std::str::FromStr;
+
+use clap::{Parser, ValueEnum};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -147,9 +149,9 @@ pub struct Args {
     #[arg(short, long)]
     pub interactive: bool,
 
-    /// Watch mode: re-run every N seconds (default: 30)
-    #[arg(long, default_missing_value = "30", num_args = 0..=1)]
-    pub watch: Option<u64>,
+    /// Watch mode: continuous refresh (interval: 5m, 10m, or 15m, default: 5m)
+    #[arg(long, default_missing_value = "5m", num_args = 0..=1, value_name = "INTERVAL")]
+    pub watch: Option<WatchInterval>,
 
     // ── Utility ──
     /// Generate shell completions (bash, zsh, fish, elvish, powershell)
@@ -246,4 +248,44 @@ pub enum Source {
     Claude,
     OpenCode,
     Gemini,
+}
+
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
+pub enum WatchInterval {
+    Min5,
+    Min10,
+    Min15,
+}
+
+impl WatchInterval {
+    pub fn as_secs(&self) -> u64 {
+        match self {
+            WatchInterval::Min5 => 300,
+            WatchInterval::Min10 => 600,
+            WatchInterval::Min15 => 900,
+        }
+    }
+
+    pub fn display(&self) -> &'static str {
+        match self {
+            WatchInterval::Min5 => "5m",
+            WatchInterval::Min10 => "10m",
+            WatchInterval::Min15 => "15m",
+        }
+    }
+}
+
+impl FromStr for WatchInterval {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "5m" => Ok(WatchInterval::Min5),
+            "10m" => Ok(WatchInterval::Min10),
+            "15m" => Ok(WatchInterval::Min15),
+            other => Err(format!(
+                "invalid value '{other}' for --watch: allowed values are 5m, 10m, 15m"
+            )),
+        }
+    }
 }

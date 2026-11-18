@@ -263,7 +263,7 @@ fn insert_records(
     file_size: i64,
     source_type: &str,
 ) -> Result<()> {
-    let mut stmt = conn.prepare_cached(&format!(
+    let sql = format!(
         "INSERT INTO token_records (
             timestamp, session_id, project_name, model, model_raw,
             input_tokens, output_tokens,
@@ -271,7 +271,8 @@ fn insert_records(
             source_file, source_type
         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, '{}')",
         source_type
-    ))?;
+    );
+    let mut stmt = conn.prepare_cached(&sql)?;
 
     for r in records {
         stmt.execute(params![
@@ -665,7 +666,6 @@ pub fn ingest_opencode(conn: &Connection, opencode_db_path: &Path, quiet: bool) 
     Ok(())
 }
 
-#[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 pub fn load_records(
     db_path: &Path,

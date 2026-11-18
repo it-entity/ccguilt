@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -37,33 +37,44 @@ pub enum ModelTier {
     Unknown,
 }
 
+fn contains_ci(haystack: &str, needle: &str) -> bool {
+    let n = needle.len();
+    if n == 0 || n > haystack.len() {
+        return n == 0;
+    }
+    haystack.as_bytes().windows(n).any(|w| {
+        w.iter()
+            .zip(needle.as_bytes())
+            .all(|(a, b)| a.eq_ignore_ascii_case(b))
+    })
+}
+
 impl ModelTier {
     pub fn from_model_string(s: &str) -> Option<Self> {
         if s == "<synthetic>" {
             return None;
         }
-        let s_lower = s.to_lowercase();
-        if s_lower.contains("opus") {
+        if contains_ci(s, "opus") {
             Some(ModelTier::Opus)
-        } else if s_lower.contains("sonnet") {
+        } else if contains_ci(s, "sonnet") {
             Some(ModelTier::Sonnet)
-        } else if s_lower.contains("haiku") {
+        } else if contains_ci(s, "haiku") {
             Some(ModelTier::Haiku)
-        } else if s_lower.contains("fable") {
+        } else if contains_ci(s, "fable") {
             Some(ModelTier::Fable)
-        } else if s_lower.contains("mythos") {
+        } else if contains_ci(s, "mythos") {
             Some(ModelTier::Mythos)
-        } else if s_lower.contains("glm-5") || s_lower.contains("glm5") {
+        } else if contains_ci(s, "glm-5") || contains_ci(s, "glm5") {
             Some(ModelTier::Glm5)
-        } else if s_lower.contains("glm-4") || s_lower.contains("glm4") {
+        } else if contains_ci(s, "glm-4") || contains_ci(s, "glm4") {
             Some(ModelTier::Glm47)
-        } else if s_lower.contains("deepseek-reasoner") || s_lower.contains("deepseek-r1") {
+        } else if contains_ci(s, "deepseek-reasoner") || contains_ci(s, "deepseek-r1") {
             Some(ModelTier::DeepSeekReasoner)
-        } else if s_lower.contains("gemini") && s_lower.contains("flash") {
+        } else if contains_ci(s, "gemini") && contains_ci(s, "flash") {
             Some(ModelTier::GeminiFlash)
-        } else if s_lower.contains("gemini-3") || s_lower.contains("gemini3") {
+        } else if contains_ci(s, "gemini-3") || contains_ci(s, "gemini3") {
             Some(ModelTier::Gemini31Pro)
-        } else if s_lower.contains("gemini") {
+        } else if contains_ci(s, "gemini") {
             Some(ModelTier::Gemini25Pro)
         } else {
             Some(ModelTier::Unknown)
@@ -190,7 +201,7 @@ pub struct UsageBucket {
     pub cost: CostSummary,
     pub impact: ImpactSummary,
     pub guilt: GuiltRating,
-    pub models_used: Vec<String>,
+    pub models_used: IndexSet<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
