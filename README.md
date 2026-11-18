@@ -130,8 +130,8 @@ ccguilt daily -v                     # verbose mode: show per-file parsing detai
 
 ```bash
 ccguilt -i                           # launch interactive TUI
-ccguilt --watch                      # re-run every 30 seconds
-ccguilt --watch 10                   # re-run every 10 seconds
+ccguilt --watch                      # live view, refreshed every 5 minutes
+ccguilt --watch 10m                  # interval: 5m, 10m or 15m (q, Esc or Ctrl+C to stop)
 ```
 
 ### Comparison & Insights
