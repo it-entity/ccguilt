@@ -3,12 +3,12 @@ use colored::Colorize;
 use std::fs;
 use std::process::Command;
 
-/// Self-hosted Gitea (LAN only) — web root of the repo and its releases API.
+/// Self-hosted Gitea (LAN only, preferred) — web root of the repo and its releases API.
 const GITEA_REPO_URL: &str = "http://git-aeoru.local:3000/entity/ccguilt";
 const GITEA_API: &str = "http://git-aeoru.local:3000/api/v1/repos/entity/ccguilt/releases";
-/// Public GitHub mirror — web root of the repo and its latest-release API.
-const GITHUB_REPO_URL: &str = "https://github.com/aayushh-code/ccguilt";
-const GITHUB_API: &str = "https://api.github.com/repos/aayushh-code/ccguilt/releases/latest";
+/// Public GitHub mirror (fallback) — web root of the repo and its latest-release API.
+const GITHUB_REPO_URL: &str = "https://github.com/it-entity/ccguilt";
+const GITHUB_API: &str = "https://api.github.com/repos/it-entity/ccguilt/releases/latest";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Map Rust arch constants to the asset naming conventions used in releases
@@ -25,16 +25,6 @@ fn platform_asset_name() -> String {
     format!("ccguilt-{}-{}", os, arch)
 }
 
-/// Map Rust arch constants to Gitea asset names (which use amd64 convention)
-fn gitea_asset_name() -> String {
-    let arch = match std::env::consts::ARCH {
-        "x86_64" | "amd64" => "amd64",
-        "aarch64" | "arm64" => "aarch64",
-        other => other,
-    };
-    format!("ccguilt-linux-{}", arch)
-}
-
 pub fn self_update() -> Result<()> {
     eprintln!(
         "  {} Checking for updates (current: v{})...",
@@ -42,16 +32,16 @@ pub fn self_update() -> Result<()> {
         CURRENT_VERSION
     );
 
-    // Try GitHub first (public, works from anywhere), fall back to Gitea (LAN only)
-    let (tag, download_url) = match try_github() {
+    // Try Gitea first (self-hosted, LAN only), fall back to GitHub (public)
+    let (tag, download_url) = match try_gitea() {
         Ok(result) => result,
-        Err(gh_err) => {
+        Err(gitea_err) => {
             eprintln!(
-                "  {} GitHub unavailable ({}), trying Gitea...",
+                "  {} Gitea unavailable ({}), trying GitHub...",
                 ">>".yellow().bold(),
-                gh_err
+                gitea_err
             );
-            try_gitea()?
+            try_github()?
         }
     };
 
@@ -150,7 +140,7 @@ fn try_github() -> Result<(String, String)> {
 
 fn try_gitea() -> Result<(String, String)> {
     let output = Command::new("curl")
-        .args(["-s", "-L", "--connect-timeout", "5", GITEA_API])
+        .args(["-s", "-L", "--connect-timeout", "3", GITEA_API])
         .output()
         .map_err(|_| anyhow!("curl not found"))?;
 
@@ -170,9 +160,9 @@ fn try_gitea() -> Result<(String, String)> {
         .ok_or_else(|| anyhow!("Invalid release format."))?
         .to_string();
 
-    // Gitea uses amd64 naming convention; build the URL from GITEA_REPO_URL rather than
-    // trusting browser_download_url, which follows the server's configured ROOT_URL
-    let expected = gitea_asset_name();
+    // Build the URL from GITEA_REPO_URL rather than trusting browser_download_url,
+    // which follows the server's configured ROOT_URL
+    let expected = platform_asset_name();
     let download_url = latest["assets"]
         .as_array()
         .and_then(|assets| {

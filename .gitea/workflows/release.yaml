@@ -30,7 +30,7 @@ jobs:
           cargo build --release
 
       - name: Rename binary
-        run: cp target/release/ccguilt ccguilt-linux-amd64
+        run: cp target/release/ccguilt ccguilt-linux-x86_64
 
       - name: Create release and upload
         env:
@@ -47,6 +47,6 @@ jobs:
           curl -s -X POST \
             -H "Authorization: token ${GITEA_TOKEN}" \
             -H "Content-Type: application/octet-stream" \
-            --data-binary @ccguilt-linux-amd64 \
-            "${API}/releases/${RELEASE_ID}/assets?name=ccguilt-linux-amd64"
+            --data-binary @ccguilt-linux-x86_64 \
+            "${API}/releases/${RELEASE_ID}/assets?name=ccguilt-linux-x86_64"
           echo "Release ${TAG} created with binary"
