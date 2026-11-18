@@ -13,6 +13,17 @@ jobs:
         run: |
           git clone --depth 1 --branch ${GITHUB_REF_NAME} http://git-aeoru.local:3000/entity/ccguilt.git .
 
+      - name: Install Rust toolchain
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          if ! command -v rustup >/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+              | sh -s -- -y --profile minimal --default-toolchain none
+          fi
+          command -v cc >/dev/null || (apt-get update && apt-get install -y build-essential)
+          # Installs the version and components pinned in rust-toolchain.toml
+          rustup toolchain install
+
       - name: Build release binary
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
